@@ -2,7 +2,7 @@
 
 ### Project specific ignores
 
-d2v.model/
+d2v_model/
 raw_data/original_articles
 *.p
 

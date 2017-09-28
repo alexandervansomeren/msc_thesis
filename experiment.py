@@ -11,7 +11,7 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # cancel optimization complaints by te
 
 raw_data_folder = 'original_articles'
 rel_labels_fname = 'relevance_labels_' + raw_data_folder + '.p'
-doc2vec_model_folder = 'd2v.model/'
+doc2vec_model_folder = 'd2v_model/'
 
 distance_measure = 'cosine'
 

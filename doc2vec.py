@@ -312,17 +312,19 @@ class Doc2Vec(BaseEstimator, TransformerMixin):
         '''
         # load params of the model
         # path_dir = os.path.dirname(path)
+        print("HALLO!!")
         params = json.load(open(os.path.join(path, 'model_params.json'), 'r'))
+        print(path)
         # init an instance of this class
         estimator = Doc2Vec(**params)
-        estimator._restore(path)
-        # evaluate the Variable embeddings and bind to estimator
-        estimator.word_embeddings = estimator.sess.run(estimator.normalized_word_embeddings)
-        estimator.doc_embeddings = estimator.sess.run(estimator.normalized_doc_embeddings)
+        estimator._restore(path + "model.ckpt")
+        # # evaluate the Variable embeddings and bind to estimator
+        # estimator.word_embeddings = estimator.sess.run(estimator.normalized_word_embeddings)
+        # estimator.doc_embeddings = estimator.sess.run(estimator.normalized_doc_embeddings)
         # bind dictionaries
-        estimator.dictionary = json.load(open(os.path.join(path, 'model_dict.json'), 'r'))
-        reverse_dictionary = json.load(open(os.path.join(path, 'model_rdict.json'), 'r'))
-        # convert indices loaded from json back to int since json does not allow int as keys
-        estimator.reverse_dictionary = {int(key): val for key, val in reverse_dictionary.items()}
+        # estimator.dictionary = json.load(open(os.path.join(path, 'model_dict.json'), 'r'))
+        # reverse_dictionary = json.load(open(os.path.join(path, 'model_rdict.json'), 'r'))
+        # # convert indices loaded from json back to int since json does not allow int as keys
+        # estimator.reverse_dictionary = {int(key): val for key, val in reverse_dictionary.items()}
 
         return estimator
