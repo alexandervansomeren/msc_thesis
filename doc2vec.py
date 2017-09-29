@@ -147,14 +147,17 @@ class Doc2Vec(BaseEstimator, TransformerMixin):
             # Set graph level random seed
             tf.set_random_seed(SEED)
 
-            self.train_dataset = tf.placeholder(tf.int32, shape=[self.batch_size, self.window_size + 1])
+            self.train_dataset = tf.placeholder(tf.int32, shape=[self.batch_size, self.window_size + 1])  # +1 ~ doc_id
             self.train_labels = tf.placeholder(tf.int32, shape=[self.batch_size, 1])
-            # Variables.
-            # embeddings for words, W in paper
+
+            """
+            Variables
+            """
+            # embeddings for words, W in paper (every column represents a word)
             self.word_embeddings = tf.Variable(
                 tf.random_uniform([self.vocabulary_size, self.embedding_size_w], -1.0, 1.0), name="word_embeddings")
 
-            # embedding for documents (can be sentences or paragraph), D in paper
+            # embedding for documents (can be sentences or paragraph), D in paper (every column represents a document)
             self.doc_embeddings = tf.Variable(
                 tf.random_uniform([self.document_size, self.embedding_size_d], -1.0, 1.0), name="doc_embeddings")
 
@@ -170,27 +173,35 @@ class Doc2Vec(BaseEstimator, TransformerMixin):
             # softmax biases
             self.biases = tf.Variable(tf.zeros([self.vocabulary_size]), name="biases")
 
-            # Model.
+            """
+            Model
+            """
             # Look up embeddings for inputs.
             # shape: (batch_size, embeddings_size)
             embed = []  # collect embedding matrices with shape=(batch_size, embedding_size)
             if self.concat:
+                # Does this need to happen in a for loop?
                 for j in range(self.window_size):
-                    embed_w = tf.nn.embedding_lookup(self.word_embeddings, self.train_dataset[:, j],
-                                                     name='embedding_lookup_one')
+                    embed_w = tf.nn.embedding_lookup(params=self.word_embeddings,
+                                                     ids=self.train_dataset[:, j],
+                                                     name='embedding_lookup_concat')
                     embed.append(embed_w)
             else:
                 # averaging word vectors
                 embed_w = tf.zeros([self.batch_size, self.embedding_size_w])
                 for j in range(self.window_size):
-                    embed_w += tf.nn.embedding_lookup(self.word_embeddings, self.train_dataset[:, j],
-                                                      name='embedding_lookup_two')
+                    embed_w += tf.nn.embedding_lookup(params=self.word_embeddings,
+                                                      ids=self.train_dataset[:, j],
+                                                      name='embedding_lookup_average')
                 embed.append(embed_w)
 
-            embed_d = tf.nn.embedding_lookup(self.doc_embeddings, self.train_dataset[:, self.window_size],
-                                             name='embedding_lookup_three')
+            embed_d = tf.nn.embedding_lookup(params=self.doc_embeddings,
+                                             ids=self.train_dataset[:, self.window_size],  # location of document
+                                             name='embedding_lookup_documents')
             embed.append(embed_d)
-            # concat word and doc vectors
+
+            # concat word and doc vectors --> for softmax, alternative: average ~ worse
+            # ("Perhaps, this is because the model loses the ordering information.")
             self.embed = tf.concat(values=embed, axis=1, name='concat')
 
             # Compute the loss, using a sample of the negative labels each time.
@@ -201,7 +212,7 @@ class Doc2Vec(BaseEstimator, TransformerMixin):
                                                   inputs=self.embed,
                                                   num_sampled=self.n_neg_samples,
                                                   num_classes=self.vocabulary_size,
-                                                  name="loss")
+                                                  name="sampled_softmax_loss")
             elif self.loss_type == 'nce_loss':
                 loss = tf.nn.nce_loss(weights=self.weights,
                                       biases=self.biases,
@@ -209,10 +220,10 @@ class Doc2Vec(BaseEstimator, TransformerMixin):
                                       inputs=self.embed,
                                       num_sampled=self.n_neg_samples,
                                       num_classes=self.vocabulary_size,
-                                      name="loss")
+                                      name="nce_loss")
             self.loss = tf.reduce_mean(loss)
 
-            # Optimizer.
+            # Optimizer. (SGD is proposed in the original papar)
             if self.optimize == 'Adagrad':
                 self.optimizer = tf.train.AdagradOptimizer(self.learning_rate).minimize(loss)
             elif self.optimize == 'SGD':
@@ -312,7 +323,6 @@ class Doc2Vec(BaseEstimator, TransformerMixin):
         '''
         # load params of the model
         # path_dir = os.path.dirname(path)
-        print("HALLO!!")
         params = json.load(open(os.path.join(path, 'model_params.json'), 'r'))
         print(path)
         # init an instance of this class
