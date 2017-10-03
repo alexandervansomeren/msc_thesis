@@ -4,12 +4,13 @@ import nltk
 import pickle
 
 
-def prepare_relevance_labels(output_fname='rel_labels.p', folder='original_articles/'):
+def prepare_relevance_labels(output_fname='rel_labels.p', folder='original_articles'):
     source_dict = {}  # maps article filename to source
     docs = []  # list with documents
     doc_names = []  # doc names with same index as docs
 
-    for subdir, dirs, files in os.walk('./raw_data/' + folder):
+    data_path = os.path.join(os.getcwd(), 'raw_data.tmp', folder)
+    for subdir, dirs, files in os.walk(data_path):
         files = [fi for fi in files if fi.endswith(".txt")]
         for file in files:
             path = os.path.join(subdir, file)
@@ -40,16 +41,23 @@ def prepare_relevance_labels(output_fname='rel_labels.p', folder='original_artic
     # create a Gensim dictionary from the texts
     # dictionary = corpora.Dictionary(docs)
 
+    print("Computing BM25...")
     bm25 = gensim.summarization.bm25.BM25(tokenized)
+    print("Done computing bm25, compute average IDF...")
     average_idf = sum(map(lambda k: float(bm25.idf[k]), bm25.idf.keys())) / len(bm25.idf.keys())
+    print("Done computing average IDF.")
 
+    print("Computing relative scores...")
     bm25_scores = []
     sorted_bm25_indices = []
-    for doc in tokenized:
+    len_tokenized = len(tokenized)
+    for i, doc in enumerate(tokenized):
         temp_bm25_scores = bm25.get_scores(doc, average_idf)
         sorted_indices = sorted(range(len(temp_bm25_scores)), key=lambda x: temp_bm25_scores[x], reverse=True)
-        bm25_scores.append(temp_bm25_scores)
+        bm25_scores.append(temp_bm25_scores[:10])
         sorted_bm25_indices.append(sorted_indices)
+        if (i % 1000) == 0:
+            print(str(i) + ' / ' + str(len_tokenized))
 
     with open(output_fname, 'wb') as f:
         pickle.dump([source_dict, docs, doc_names, tokenized, bm25_scores, sorted_bm25_indices], f)
