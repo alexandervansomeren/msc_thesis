@@ -54,8 +54,8 @@ def prepare_relevance_labels(output_fname='rel_labels.p', folder='original_artic
     for i, doc in enumerate(tokenized):
         temp_bm25_scores = bm25.get_scores(doc, average_idf)
         sorted_indices = sorted(range(len(temp_bm25_scores)), key=lambda x: temp_bm25_scores[x], reverse=True)
-        bm25_scores.append(temp_bm25_scores[:10])
-        sorted_bm25_indices.append(sorted_indices)
+        # bm25_scores.append(temp_bm25_scores[:10])
+        sorted_bm25_indices.append(sorted_indices[:10])
         if (i % 1000) == 0:
             print(str(i) + ' / ' + str(len_tokenized))
 
