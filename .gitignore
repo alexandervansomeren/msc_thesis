@@ -2,7 +2,7 @@
 
 ### Project specific ignores
 
-d2v_model/
+d2v_model*
 raw_data.tmp/original_articles
 raw_data.tmp/aminer_org_v1
 *.p
