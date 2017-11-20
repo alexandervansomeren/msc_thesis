@@ -1,4 +1,4 @@
-'''
+"""
 Tensorflow implementation of PV-DM algorithm as a scikit-learn like model
 with fit, transform methods.
 
@@ -7,7 +7,7 @@ with fit, transform methods.
 @references:
 
 http://arxiv.org/abs/1405.4053
-'''
+"""
 
 import os
 import math
@@ -28,11 +28,13 @@ SEED = 2016
 random.seed(SEED)
 np.random.seed(SEED)
 
+"""
+Util functions
+"""
 
-#################### Util functions ####################
 
 def build_doc_dataset(docs, vocabulary_size=50000):
-    '''
+    """
     Build the dictionary and replace rare words with UNK token.
 
     Parameters
@@ -40,7 +42,7 @@ def build_doc_dataset(docs, vocabulary_size=50000):
     docs: list of token lists, each token list represent a sentence/document
     vocabulary_size: maximum number of top occurring tokens to produce,
         rare tokens will be replaced by 'UNK'
-    '''
+    """
     count = [['UNK', -1]]
     # words = reduce(lambda x,y: x+y, docs)
     words = []
@@ -100,8 +102,65 @@ def generate_batch_pvdm(doc_ids, word_ids, batch_size, window_size):
     return batch, labels
 
 
+def sample_prior_graph(refs, prior_sample_size):
+    if len(refs) > prior_sample_size:
+        return random.sample(refs, prior_sample_size)
+    else:
+        sample = [-1] * prior_sample_size
+        sample[:len(refs)] = refs
+        return sample
+
+
+def generate_batch_pv_prior(doc_ids, word_ids, prior_graph, batch_size, window_size, prior_sample_size):
+    """
+    Batch generator for PV-Prior (Distributed Memory Model with added prior information in the form of a network graph
+    for Paragraph Vectors).
+    batch should be a shape of (batch_size, window_size + 1 + prior_sample_size)
+
+    Parameters
+    ----------
+    doc_ids: list of document indices
+    word_ids: list of word indices
+    prior_graph: list of
+    batch_size: number of words in each mini-batch
+    window_size: number of leading words before the target word
+    prior_sample_size: number to sample from prior graph
+    """
+    global data_index
+    assert batch_size % window_size == 0
+    batch = np.ndarray(shape=(batch_size, window_size + 1 + prior_sample_size), dtype=np.int32)
+    labels = np.ndarray(shape=(batch_size, 1), dtype=np.int32)
+    span = window_size + 1
+    buffer = collections.deque(maxlen=span)  # used for collecting word_ids[data_index] in the sliding window
+    buffer_doc = collections.deque(maxlen=span)  # collecting id of documents in the sliding window
+    # collect the first window of words
+    for _ in range(span):
+        buffer.append(word_ids[data_index])
+        buffer_doc.append(doc_ids[data_index])
+        data_index = (data_index + 1) % len(word_ids)
+
+    mask = [1] * span
+    mask[-1] = 0
+    i = 0
+    while i < batch_size:
+        if len(set(buffer_doc)) == 1:
+            doc_id = buffer_doc[-1]
+            # all leading words and the doc_id
+            batch[i, :] = list(compress(buffer, mask)) + [doc_id] + sample_prior_graph(prior_graph[doc_id],
+                                                                                       prior_sample_size)
+            labels[i, 0] = buffer[-1]  # the last word at end of the sliding window
+            i += 1
+        # move the sliding window
+        buffer.append(word_ids[data_index])
+        buffer_doc.append(doc_ids[data_index])
+        data_index = (data_index + 1) % len(word_ids)
+
+    return batch, labels
+
+
 class Doc2Vec(BaseEstimator, TransformerMixin):
     def __init__(self, batch_size=128, window_size=8,
+                 prior_sample_size=10,
                  concat=True,
                  architecture='pvdm', embedding_size_w=128,
                  embedding_size_d=128,
@@ -113,6 +172,7 @@ class Doc2Vec(BaseEstimator, TransformerMixin):
         # bind params to class
         self.batch_size = batch_size
         self.window_size = window_size
+        self.prior_sample_size = prior_sample_size
         self.concat = concat
         self.architecture = architecture
         self.embedding_size_w = embedding_size_w
@@ -136,6 +196,8 @@ class Doc2Vec(BaseEstimator, TransformerMixin):
     def _choose_batch_generator(self):
         if self.architecture == 'pvdm':
             self.generate_batch = generate_batch_pvdm
+        elif self.architecture == 'pvprior':
+            self.generate_batch = generate_batch_pv_prior
 
     def _init_graph(self):
         '''
@@ -147,7 +209,12 @@ class Doc2Vec(BaseEstimator, TransformerMixin):
             # Set graph level random seed
             tf.set_random_seed(SEED)
 
-            self.train_dataset = tf.placeholder(tf.int32, shape=[self.batch_size, self.window_size + 1])  # +1 ~ doc_id
+            if self.architecture == 'pvdm':
+                self.train_dataset = tf.placeholder(tf.int32, shape=[self.batch_size,
+                                                                     self.window_size + 1])
+            elif self.architecture == 'pvprior':
+                self.train_dataset = tf.placeholder(tf.int32, shape=[self.batch_size,
+                                                                     self.window_size + 1 + self.prior_sample_size])
             self.train_labels = tf.placeholder(tf.int32, shape=[self.batch_size, 1])
 
             """
@@ -161,10 +228,17 @@ class Doc2Vec(BaseEstimator, TransformerMixin):
             self.doc_embeddings = tf.Variable(
                 tf.random_uniform([self.document_size, self.embedding_size_d], -1.0, 1.0), name="doc_embeddings")
 
-            if self.concat:  # concatenating word vectors and doc vector
-                combined_embed_vector_length = self.embedding_size_w * self.window_size + self.embedding_size_d
-            else:  # concatenating the average of word vectors and the doc vector
-                combined_embed_vector_length = self.embedding_size_w + self.embedding_size_d
+            if self.architecture == 'pvdm':
+                if self.concat:  # concatenating word vectors and doc vector
+                    combined_embed_vector_length = self.embedding_size_w * self.window_size + self.embedding_size_d
+                else:  # concatenating the average of word vectors and the doc vector
+                    combined_embed_vector_length = self.embedding_size_w + self.embedding_size_d
+            elif self.architecture == 'pvprior':
+                if self.concat:  # concatenating word vectors and doc vector
+                    combined_embed_vector_length = self.embedding_size_w * self.window_size + self.embedding_size_d \
+                                                   + self.embedding_size_d * self.prior_sample_size
+                else:  # concatenating the average of word vectors and the doc vector
+                    combined_embed_vector_length = self.embedding_size_w + self.embedding_size_d + self.embedding_size_d
 
             # softmax weights, W and D vectors should be concatenated before applying softmax
             self.weights = tf.Variable(
@@ -180,7 +254,7 @@ class Doc2Vec(BaseEstimator, TransformerMixin):
             # shape: (batch_size, embeddings_size)
             embed = []  # collect embedding matrices with shape=(batch_size, embedding_size)
             if self.concat:
-                # Does this need to happen in a for loop?
+                # Alex: Does this need to happen in a for loop?
                 for j in range(self.window_size):
                     embed_w = tf.nn.embedding_lookup(params=self.word_embeddings,
                                                      ids=self.train_dataset[:, j],
@@ -193,12 +267,19 @@ class Doc2Vec(BaseEstimator, TransformerMixin):
                     embed_w += tf.nn.embedding_lookup(params=self.word_embeddings,
                                                       ids=self.train_dataset[:, j],
                                                       name='embedding_lookup_average')
-                embed.append(embed_w)
+                    embed.append(embed_w)
 
             embed_d = tf.nn.embedding_lookup(params=self.doc_embeddings,
                                              ids=self.train_dataset[:, self.window_size],  # location of document
                                              name='embedding_lookup_documents')
             embed.append(embed_d)
+
+            if self.architecture == 'pvprior':
+                for j in range(self.prior_sample_size):
+                    embed_d += tf.nn.embedding_lookup(params=self.doc_embeddings,
+                                                      ids=self.train_dataset[:, self.window_size + j],
+                                                      name='embedding_lookup_average')
+                    embed.append(embed_d)
 
             # concat word and doc vectors --> for softmax, alternative: average ~ worse
             # ("Perhaps, this is because the model loses the ordering information.")
@@ -253,25 +334,45 @@ class Doc2Vec(BaseEstimator, TransformerMixin):
         self.dictionary = dictionary
         self.reverse_dictionary = reverse_dictionary
         self.count = count
+
         return doc_ids, word_ids
 
-    def fit(self, docs):
+    # def _build_dictionaries_prior_graph(self, docs, prior_graph):
+    #     '''
+    #     Process tokens and build dictionaries mapping between tokens and
+    #     their indices. Also generate token count and bind these to self.
+    #     '''
+    #
+    #     doc_ids, word_ids, prior_graph_extended, count, dictionary, reverse_dictionary = build_doc_dataset_prior(
+    #         docs, prior_graph)
+    #     self.dictionary = dictionary
+    #     self.reverse_dictionary = reverse_dictionary
+    #     self.count = count
+    #
+    #     return doc_ids, word_ids, prior_graph_extended
+
+    def fit(self, docs, prior_graph=None):
         '''
         words: a list of words.
         '''
         # pre-process words to generate indices and dictionaries
         doc_ids, word_ids = self._build_dictionaries(docs)
-
         # with self.sess as session:
         session = self.sess
 
         session.run(self.init_op)
 
         average_loss = 0
-        print("Initialized")
+        # print("Initialized")
         for step in range(self.n_steps):
-            batch_data, batch_labels = self.generate_batch(doc_ids, word_ids,
-                                                           self.batch_size, self.window_size)
+            if self.architecture == 'pvdm':
+                batch_data, batch_labels = self.generate_batch(doc_ids, word_ids,
+                                                               self.batch_size, self.window_size)
+            elif self.architecture == 'pvprior':
+                batch_data, batch_labels = self.generate_batch(doc_ids, word_ids, prior_graph,
+                                                               self.batch_size, self.window_size,
+                                                               self.prior_sample_size)
+
             feed_dict = {self.train_dataset: batch_data, self.train_labels: batch_labels}
             op, l = session.run([self.optimizer, self.loss], feed_dict=feed_dict)
             average_loss += l
@@ -292,10 +393,11 @@ class Doc2Vec(BaseEstimator, TransformerMixin):
         '''
         To save trained model and its params.
         '''
-        save_path = self.saver.save(self.sess,
-                                    os.path.join(path, 'model.ckpt'))
         if not os.path.exists(path):
             os.makedirs(path)
+
+        save_path = self.saver.save(self.sess,
+                                    os.path.join(path, 'model.ckpt'))
         # save parameters of the model
         params = self.get_params()
         json.dump(params,
@@ -327,7 +429,7 @@ class Doc2Vec(BaseEstimator, TransformerMixin):
         print(path)
         # init an instance of this class
         estimator = Doc2Vec(**params)
-        estimator._restore(path + "model.ckpt")
+        estimator._restore(os.path.join(path, "model.ckpt"))
         # # evaluate the Variable embeddings and bind to estimator
         # estimator.word_embeddings = estimator.sess.run(estimator.normalized_word_embeddings)
         # estimator.doc_embeddings = estimator.sess.run(estimator.normalized_doc_embeddings)
