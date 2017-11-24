@@ -15,14 +15,16 @@ def get_relevance_labels():
     """
     Prepares or loads the relevance labels using bm25
     """
-
+    global tokenized
+    global sorted_bm25_indices
+    global doc_names
     if not os.path.isfile(rel_labels_fname):
         print('Computing relevance labels using bm25... (this takes a while, but should only be done once..)')
         import prepare_relevance_labels
         prepare_relevance_labels.prepare_relevance_labels(output_fname=rel_labels_fname, folder=raw_data_folder)
     with open(rel_labels_fname, 'rb') as rel_lab_file:
-        _, _, _, tokenized, _, sorted_bm25_indices = pickle.load(rel_lab_file)
-    return tokenized, sorted_bm25_indices
+        _, _, _, tokenized, doc_names, sorted_bm25_indices = pickle.load(rel_lab_file)
+        # return
 
 
 def train_paragraph_vectors():
@@ -134,7 +136,7 @@ if __name__ == "__main__":
 
     distance_measure = args.dist_measure
 
-    tokenized, sorted_bm25_indices = get_relevance_labels()
+    get_relevance_labels()
 
     embeddings = []
     params = {
