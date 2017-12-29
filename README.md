@@ -1,6 +1,6 @@
 # Doc2Vec Pipeline
 
-Please run ```experiment.py``` notebook file for experimenting.
+Please run ```experiment.py``` notebook file for experimenting. View all options using ```python experiment.py --help```.
 
 You can view the results in results.ipynb after running.
 
