@@ -2,11 +2,14 @@
 
 ### Project specific ignores
 
-d2v_model*
-raw_data.tmp/original_articles
-raw_data.tmp/aminer_org_v1
+experiments/*
+!experiments/.gitignore
+experiments_old
+raw_data.tmp/*
+!raw_data.tmp/.gitignore
 *.p
-
+*.pyc
+*.zip
 
 ### Python template
 # Byte-compiled / optimized / DLL files
