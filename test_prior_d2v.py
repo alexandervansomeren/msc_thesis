@@ -14,10 +14,10 @@ from sklearn.neighbors import NearestNeighbors
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # cancel optimization complaints by tensorflow
 
-raw_data_folder = 'aminer_org_v1'  # aminer_org_v1
-rel_labels_fname = 'relevance_labels_' + raw_data_folder + '.p'
+data_folder = 'aminer_org_v1'  # aminer_org_v1
+rel_labels_fname = 'relevance_labels_' + data_folder + '.p'
 architecture = 'pvprior'  # pvdm
-doc2vec_model_folder = 'd2v_model_' + raw_data_folder + '_' + architecture
+doc2vec_model_folder = 'd2v_model_' + data_folder + '_' + architecture
 
 distance_measure = 'cosine'
 
@@ -79,7 +79,7 @@ for doc_index, sorted_distance_indices in enumerate(sorted_distances_indices):
         'ndcg_at_10': ndcg_at_10,
     })
 
-with open('results_' + raw_data_folder + '_' + architecture + '.p', 'wb') as f:
+with open('results_' + data_folder + '_' + architecture + '.p', 'wb') as f:
     pickle.dump(results, f)
 
 print("MAP: ", rank_metrics.mean_average_precision(hits))

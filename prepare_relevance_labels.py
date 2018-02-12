@@ -24,7 +24,7 @@ class BM25:
         self.tfidf_generator()
 
     def build_dictionary(self):
-        raw_data = []
+        data = []
         for subdir, dirs, files in os.walk(self.data_path):
             files = [fi for fi in files if fi.endswith(".txt")]
             for file in files:
@@ -33,10 +33,10 @@ class BM25:
                 fname = file[:-4]
                 self.source_dict[fname] = subdir.split(os.path.sep)[-1]
                 with open(path, 'r', encoding='utf8') as f:
-                    raw_data.append(
+                    data.append(
                         [word for sent in nltk.sent_tokenize(f.read()) for word in nltk.word_tokenize(sent)])
                 self.doc_names.append(fname)
-        self.dictionary.add_documents(raw_data)
+        self.dictionary.add_documents(data)
 
     def tfidf_generator(self, base=math.e):
         total_doc_len = 0
@@ -93,7 +93,7 @@ def prepare_relevance_labels(output_fname='rel_labels.p', folder='original_artic
     docs = []  # list with documents
     doc_names = []  # doc names with same index as docs
 
-    data_path = os.path.join(os.getcwd(), 'raw_data.tmp', folder)
+    data_path = os.path.join(os.getcwd(), 'data.tmp', folder)
     for subdir, dirs, files in os.walk(data_path):
         files = [fi for fi in files if fi.endswith(".txt")]
         for file in files:

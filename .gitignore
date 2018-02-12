@@ -5,8 +5,8 @@
 experiments/*
 !experiments/.gitignore
 experiments_old
-raw_data.tmp/*
-!raw_data.tmp/.gitignore
+data.tmp/*
+!data.tmp/.gitignore
 *.p
 *.pyc
 *.zip

@@ -5,4 +5,4 @@ Please run ```experiment.py``` notebook file for experimenting. View all options
 You can view the results in results.ipynb after running.
 
 You can download the input data [here](https://drive.google.com/open?id=1UPQ94cnx4aviUL2vNwWD5Si7BlzMXwve) and put the
-```aminer_org_v1/```-folder into the ```raw_data.tmp/``` folder.
+```aminer_org_v1/```-folder into the ```data.tmp/``` folder.
