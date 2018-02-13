@@ -41,9 +41,7 @@ def train_gae():
 
     # load data
     print("Loading data")
-    links_per_doc = utils.links_per_doc_creator(links, left_in_links_ixs)
-    nx_data = nx.from_dict_of_lists(links_per_doc)
-    del links_per_doc
+    nx_data = nx.from_dict_of_lists(utils.links_per_doc_creator(links, left_in_links_ixs))
     adj = nx.adjacency_matrix(nx_data)
     # features = np.array([])
     nodes = nx_data.nodes()
@@ -207,7 +205,7 @@ if __name__ == "__main__":
                         help='Sample from data set')
     parser.add_argument('-iterations',
                         type=int,
-                        default=5,
+                        default=20,
                         help='Number of iterations over data for algorithm')
     parser.add_argument('-emb_size_w',
                         type=int,
@@ -321,7 +319,7 @@ if __name__ == "__main__":
         flags = tf.app.flags
         FLAGS = flags.FLAGS
         flags.DEFINE_float('learning_rate', 0.01, 'Initial learning rate.')
-        flags.DEFINE_integer('epochs', 200, 'Number of epochs to train.')
+        flags.DEFINE_integer('epochs', args.iterations, 'Number of epochs to train.')
         flags.DEFINE_integer('hidden1', 32, 'Number of units in hidden layer 1.')
         flags.DEFINE_integer('hidden2', 16, 'Number of units in hidden layer 2.')
         flags.DEFINE_float('weight_decay', 0., 'Weight for L2 loss on embedding matrix.')
@@ -348,11 +346,8 @@ if __name__ == "__main__":
         print('Writing ground_truth file for trec_eval.')
 
         links_per_doc = utils.links_per_doc_creator(links, left_out_links_ixs)
-        print(links_per_doc)
         with open(os.path.join(fold_folder, 'trec_rel_file.tmp'), 'w') as trec_rel_f:
             for doc, temp_links in links_per_doc.items():
-                print(doc, temp_links)
-                print(len(doc_names))
                 for temp_link in temp_links:
                     trec_rel_f.write(' '.join([doc_names[doc], '0', doc_names[temp_link], '1']) + '\n')
         print('Done.')
@@ -373,7 +368,7 @@ if __name__ == "__main__":
             with open(os.path.join(fold_folder, 'trec_top_file.tmp'), 'w') as trec_top_f:
                 for i, doc_name in enumerate(doc_names):
                     # most_similar_indices = [res[0] for res in ]
-                    for s, msi in enumerate(d2v.docvecs.most_similar(i, topn=100)):
+                    for s, msi in enumerate(d2v.docvecs.most_similar(i, topn=50)):
                         trec_top_f.write(
                             ' '.join([doc_name, '0', doc_names[msi[0]], str(msi[1]), '0', exp_name]) + '\n')
         elif args.algorithm == 'random':
@@ -383,23 +378,25 @@ if __name__ == "__main__":
             with open(os.path.join(fold_folder, 'trec_top_file.tmp'), 'w') as trec_top_f:
                 for i, doc_name in enumerate(doc_names):
                     temp_set = doc_names_set.difference({doc_name})
-                    most_similar = np.random.choice(list(temp_set), 100, replace=False)
+                    most_similar = np.random.choice(list(temp_set), 50, replace=False)
                     for s, doc in enumerate(most_similar):
                         trec_top_f.write(' '.join([doc_name, '0', doc, str(s), '0', exp_name]) + '\n')
             print('Done.')
         elif args.algorithm == "gae" or args.algorithm == "gae-features":
             nodes, embeddings = train_gae()
             nodes = list(nodes)
-            neigh = NearestNeighbors(n_neighbors=100, algorithm='brute', metric=distance_measure)
+            print(nodes)
+            neigh = NearestNeighbors(n_neighbors=50, algorithm='brute', metric=distance_measure)
             neigh.fit(embeddings)
             with open(os.path.join(fold_folder, 'trec_top_file.tmp'), 'w') as trec_top_f:
                 for source, embedding in zip(nodes, embeddings):
-                    distances, indexes = neigh.kneighbors(embedding.reshape(1, -1), 100, return_distance=True)
+                    distances, indexes = neigh.kneighbors(embedding.reshape(1, -1), 50, return_distance=True)
                     for ix, distance in zip(indexes.tolist()[0], distances.tolist()[0]):
                         # print(ix)
                         target = nodes[ix]
                         # print(target)
-                        trec_top_f.write(' '.join([source, '0', target, str(distance), '0', exp_name]) + '\n')
+                        trec_top_f.write(
+                            ' '.join([doc_names[source], '0', doc_names[target], str(distance), '0', exp_name]) + '\n')
 
         elif args.algorithm == "" or args.algorithm == "rai" or args.algorithm == 'aai' or args.algorithm == 'pa':
             import networkx as nx
