@@ -40,19 +40,21 @@ def read_and_sample_data(data_folder, sample_size, docs, doc_names, links, sampl
                 doc_names.append(line[0])
                 docs.append(' '.join(line[1:]))
         print('    Read in docs.. Reading references..')
-        # doc_names_set = set(doc_names)
+        # doc_names_set = set(doc_names)  # ~300ms
+        doc_names_indexes = {k: v for v, k in enumerate(doc_names)}
         links = []
         with open(os.path.join(data_path, 'links.txt'), 'r', encoding='utf8') as f:
             for line in f:
                 line = line.strip().split(' ')
+                link = []
                 for l in line[1:]:
                     try:
-                        links.append([doc_names.index(l)])
-                    except ValueError:
+                        link.append(doc_names_indexes[l])
+                    except KeyError:
                         pass
+                links.append(link)
                 # links.append([doc_names.index(l) for l in
                 #               line[1:] if l in doc_names_set])  # only add links that are present in doc_names
-        np.random.seed(sample_seed)
         return docs, doc_names, links
 
     if strategy == "expand":
