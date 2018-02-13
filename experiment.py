@@ -348,11 +348,13 @@ if __name__ == "__main__":
         print('Writing ground_truth file for trec_eval.')
 
         links_per_doc = utils.links_per_doc_creator(links, left_out_links_ixs)
-        # print(links_per_doc)
+        print(links_per_doc)
         with open(os.path.join(fold_folder, 'trec_rel_file.tmp'), 'w') as trec_rel_f:
             for doc, temp_links in links_per_doc.items():
+                print(doc, temp_links)
+                print(len(doc_names))
                 for temp_link in temp_links:
-                    trec_rel_f.write(' '.join([doc, '0', temp_link, '1']) + '\n')
+                    trec_rel_f.write(' '.join([doc_names[doc], '0', doc_names[temp_link], '1']) + '\n')
         print('Done.')
 
         if args.algorithm == 'pvdm' or args.algorithm == 'pvprior':
@@ -385,7 +387,7 @@ if __name__ == "__main__":
                     for s, doc in enumerate(most_similar):
                         trec_top_f.write(' '.join([doc_name, '0', doc, str(s), '0', exp_name]) + '\n')
             print('Done.')
-        elif args.algorithm == "gae" or args.algorithms == "gae-features":
+        elif args.algorithm == "gae" or args.algorithm == "gae-features":
             nodes, embeddings = train_gae()
             nodes = list(nodes)
             neigh = NearestNeighbors(n_neighbors=100, algorithm='brute', metric=distance_measure)
@@ -419,8 +421,9 @@ if __name__ == "__main__":
                     elif args.algorithm == 'pa':  # preferential attachment
                         preds = nx.preferential_attachment(G, utils.nonedges(G, u))
                     most_similar = heapq.nlargest(50, preds, key=lambda x: x[2])
-                    for doc_name, doc, s in most_similar:
-                        trec_top_f.write(' '.join([doc_name, '0', doc, str(s), '0', exp_name]) + '\n')
+                    for source_ix, target_ix, s in most_similar:
+                        trec_top_f.write(
+                            ' '.join([doc_names[source_ix], '0', doc_names[target_ix], str(s), '0', exp_name]) + '\n')
                     if c % 100 == 0:
                         print(c, ' / ', n_nodes)
 

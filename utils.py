@@ -61,7 +61,7 @@ def read_and_sample_data(data_folder, sample_size, docs, doc_names, links, sampl
         data_path = os.path.join(os.getcwd(), 'data.tmp', data_folder)
         data_cache = os.path.join(data_path, '_'.join(['', strategy, str(sample_size), str(sample_seed)])) + '.p'
         if os.path.exists(data_cache):
-            return pickle.load(open(data_cache, 'wb'))
+            return pickle.load(open(data_cache, 'rb'))
         else:
             print("    Reading raw data")
             docs, doc_names, links = read_data()
@@ -80,10 +80,13 @@ def read_and_sample_data(data_folder, sample_size, docs, doc_names, links, sampl
                         temp_sample.add(target)
                         if len(sampled_doc_ixs) == sample_size:
                             sampled_doc_ixs = list(sampled_doc_ixs)
-                            sampled_links = list(set(sampled_links))
                             sampled_doc_names = [doc_names[ix] for ix in sampled_doc_ixs]
+                            s_doc_names_ixs = {k: v for v, k in enumerate(sampled_doc_names)}
+                            sampled_links = [(s_doc_names_ixs[doc_names[s]], s_doc_names_ixs[doc_names[t]]) for s, t in
+                                             list(set(sampled_links))]
                             sampled_docs = [docs[ix] for ix in sampled_doc_ixs]
-                            pickle.dump((sampled_docs, sampled_doc_names, sampled_links), open(data_cache, 'wb'))
+                            with open(data_cache, 'wb') as f:
+                                pickle.dump((sampled_docs, sampled_doc_names, sampled_links), f)
                             return sampled_docs, sampled_doc_names, sampled_links  # docs, doc_names, links
                 new_sample = temp_sample.difference(new_sample)
                 print("    Current sample size: " + str(len(sampled_doc_ixs)))
